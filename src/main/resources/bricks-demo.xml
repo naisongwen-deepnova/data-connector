@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:yuedu="http://www.netease.com/schema/wenman"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.netease.com/schema/wenman http://www.netease.com/schema/wenman/process.xsd">
+
+    <!--compute recent 0(from 2018.1.1),7,30 days-->
+    <yuedu:process id="readStat" cron="0 0 6 * * ?" duration="1,7,30,0">
+        <yuedu:dataSource id="read_record_1" format="json" path="/D:/workspace/sqlBricks/testData/readdata.json"
+                          filter="_c1 =1" cache="true">
+            <yuedu:column expr="_c0" alias="bookId"/>
+            <yuedu:column expr="_c1" alias="type"/>
+            <yuedu:column expr="_c2" alias="userId"/>
+
+        </yuedu:dataSource>
+        <yuedu:dataSource id="read_record_2" format="csv" path="/D:/workspace/sqlBricks/testData/readdata.csv"
+                          condition="type=1">
+            <yuedu:column expr="_c0" alias="bookId"/>
+            <yuedu:column expr="_c1" alias="type"/>
+            <yuedu:column expr="_c2" alias="userId"/>
+        </yuedu:dataSource>
+
+        <yuedu:dataSource id="book_source" format="json" path="/D:/workspace/sqlBricks/testData/bookdata.json">
+            <yuedu:column expr="bookId" alias="bookId"/>
+            <yuedu:column expr="title" alias="title"/>
+        </yuedu:dataSource>
+        <!--UNION,INTERSECT,EXCEPT-->
+        <yuedu:dataCollect id="read_record_union" collectType="UNION" leftRef="read_record_1" rightRef="read_record_2"
+                           distinct="true">
+        </yuedu:dataCollect>
+
+        <yuedu:dataGroup id="read_record_count" groupBy="bookId" having="userCount>0"
+                         target="read_record_union">
+            <yuedu:column expr="bookId" alias="bookId"/>
+            <yuedu:column expr="count(distinct userId)" alias="userCount"/>
+        </yuedu:dataGroup>
+        <!--JOIN | INNER JOIN|(LEFT|RIGHT) OUTER JOIN|FULL OUTER JOIN|CROSS JOIN|LEFT (SEMI|ANTI) JOIN-->
+        <yuedu:dataJoin id="read_book_stat" joinType="INNER JOIN" leftRef="read_record_count" rightRef="book_source"
+                        filter="read_record_count.bookId=book_source.bookId" savePath="/D:/workspace/sqlBricks/testData/read_book_stat/${statDate}/${duration}"
+                        saveFormat="parquet" saveMode="overwrite" partitionNum="1">
+            <!--jdbcUrl="jdbc:mysql://10.201.241.27:3306/yaolu_rds?user=yaolu&amp;password=****">-->
+            <yuedu:column expr="read_record_count.bookId" alias="bookId"/>
+            <yuedu:column expr="read_record_count.userCount" alias="userCount"/>
+            <yuedu:column expr="book_source.title" alias="title"/>
+            <yuedu:column expr="${duration}" alias="statType"/>
+            <yuedu:column expr="${statDate}" alias="dt"/>
+        </yuedu:dataJoin>
+    </yuedu:process>
+</beans>

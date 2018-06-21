@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns="http://www.netease.com/schema/wenman"
+            xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.netease.com/schema/wenman"
+            elementFormDefault="qualified" attributeFormDefault="unqualified">
+    <xsd:complexType name="columnType">
+        <xsd:attribute name="expr" type="xsd:string" use="required"/>
+        <xsd:attribute name="alias" type="xsd:string"/>
+    </xsd:complexType>
+
+    <xsd:complexType name="dataSourceType">
+        <xsd:sequence>
+            <xsd:element name="column" minOccurs="0" maxOccurs="unbounded" type="columnType">
+            </xsd:element>
+        </xsd:sequence>
+        <xsd:attribute name="id" type="xsd:string" use="required"/>
+        <xsd:attribute name="format">
+            <xsd:simpleType>
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="parquet"/>
+                    <xsd:enumeration value="json"/>
+                    <xsd:enumeration value="text"/>
+                    <xsd:enumeration value="csv"/>
+                    <xsd:enumeration value="orc"/>
+                    <!--<xsd:enumeration value="jdbc"/>-->
+                </xsd:restriction>
+            </xsd:simpleType>
+        </xsd:attribute>
+        <xsd:attribute name="path" type="xsd:string"/>
+        <xsd:attribute name="condition" type="xsd:string"/>
+        <xsd:attribute name="filter" type="xsd:string"/>
+        <xsd:attribute name="jdbcUrl" type="xsd:string"/>
+        <xsd:attribute name="table" type="xsd:string"/>
+        <xsd:attribute name="savePath" type="xsd:string"/>
+        <xsd:attribute name="saveFormat">
+            <xsd:simpleType>
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="parquet"/>
+                    <xsd:enumeration value="json"/>
+                    <xsd:enumeration value="text"/>
+                    <xsd:enumeration value="csv"/>
+                    <xsd:enumeration value="orc"/>
+                    <!--<xsd:enumeration value="jdbc"/>-->
+                </xsd:restriction>
+            </xsd:simpleType>
+        </xsd:attribute>
+        <xsd:attribute name="orderBy" type="xsd:string"/>
+        <xsd:attribute name="sortBy" type="xsd:string"/>
+        <xsd:attribute name="clusterBy" type="xsd:string"/>
+        <xsd:attribute name="distributeBy" type="xsd:string"/>
+        <xsd:attribute name="partitionNum" type="xsd:int"/>
+        <xsd:attribute name="cache" type="xsd:boolean"/>
+        <xsd:attribute name="distinct" type="xsd:boolean"/>
+        <xsd:attribute name="saveMode">
+            <xsd:simpleType>
+                <xsd:restriction base="xsd:string">
+                    <xsd:enumeration value="overwrite"/>
+                    <xsd:enumeration value="append"/>
+                    <xsd:enumeration value="ignore"/>
+                    <xsd:enumeration value="error"/>
+                    <xsd:enumeration value="default"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+        </xsd:attribute>
+    </xsd:complexType>
+
+    <xsd:complexType name="dataMapType">
+        <xsd:complexContent>
+            <xsd:extension base="dataSourceType">
+                <xsd:attribute name="target" use="required"/>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+
+
+    <xsd:element name="dataMap" type="dataMapType">
+    </xsd:element>
+
+    <xsd:element name="dataSource" type="dataSourceType">
+        <!--<xsd:attribute name="path2" type="xsd:string"/>-->
+    </xsd:element>
+
+    <xsd:complexType name="dataCollectType">
+        <xsd:complexContent>
+            <xsd:extension base="dataSourceType">
+                <xsd:attribute name="leftRef" type="xsd:string" use="required"/>
+                <xsd:attribute name="rightRef" type="xsd:string" use="required"/>
+                <xsd:attribute name="collectType" use="required">
+                    <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                            <xsd:enumeration value="UNION"/>
+                            <xsd:enumeration value="UNION ALL"/>
+                            <xsd:enumeration value="INTERSECT"/>
+                            <xsd:enumeration value="EXCEPT"/>
+                        </xsd:restriction>
+                    </xsd:simpleType>
+                </xsd:attribute>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+
+    <xsd:complexType name="dataGroupType">
+        <xsd:complexContent>
+            <xsd:extension base="dataSourceType">
+                <xsd:attribute name="target" type="xsd:string" use="required"/>
+                <xsd:attribute name="groupBy" type="xsd:string" use="required"/>
+                <xsd:attribute name="having" type="xsd:string"/>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+
+    <xsd:complexType name="dataJoinType">
+        <xsd:complexContent>
+            <xsd:extension base="dataSourceType">
+                <xsd:attribute name="leftRef" type="xsd:string" use="required"/>
+                <xsd:attribute name="rightRef" type="xsd:string" use="required"/>
+                <xsd:attribute name="joinType" use="required">
+                    <xsd:simpleType>
+                        <xsd:restriction base="xsd:string">
+                            <xsd:enumeration value="JOIN"/>
+                            <xsd:enumeration value="INNER JOIN"/>
+                            <xsd:enumeration value="LEFT OUTER JOIN"/>
+                            <xsd:enumeration value="RIGHT OUTER JOIN"/>
+                            <xsd:enumeration value="FULL OUTER JOIN"/>
+                            <xsd:enumeration value="CROSS JOIN"/>
+                            <xsd:enumeration value="LEFT SEMI JOIN"/>
+                            <xsd:enumeration value="LEFT ANTI JOIN"/>
+                        </xsd:restriction>
+                    </xsd:simpleType>
+                </xsd:attribute>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+
+    <xsd:complexType name="processType">
+        <xsd:choice maxOccurs="unbounded">
+            <xsd:element name="dataSource" minOccurs="0" maxOccurs="unbounded" type="dataSourceType"/>
+            <xsd:element name="dataMap" minOccurs="0" maxOccurs="unbounded" type="dataMapType"/>
+            <xsd:element name="dataCollect" minOccurs="0" maxOccurs="unbounded" type="dataCollectType"/>
+            <xsd:element name="dataGroup" minOccurs="0" maxOccurs="unbounded" type="dataGroupType"/>
+            <xsd:element name="dataJoin" minOccurs="0" maxOccurs="unbounded" type="dataJoinType"/>
+        </xsd:choice>
+        <xsd:attribute name="id" type="xsd:string"/>
+        <xsd:attribute name="statDate" type="xsd:date"/>
+        <xsd:attribute name="duration">
+            <xsd:simpleType>
+                <xsd:restriction base="xsd:string">
+                    <xsd:pattern value="\d+(,\d+)*"/>
+                </xsd:restriction>
+            </xsd:simpleType>
+        </xsd:attribute>
+        <xsd:attribute name="testInt" type="xsd:integer"/>
+
+        <xsd:attribute name="cron" type="xsd:string"/>
+    </xsd:complexType>
+
+    <xsd:element name="process" type="processType">
+
+    </xsd:element>
+</xsd:schema>

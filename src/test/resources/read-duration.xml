@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:yuedu="http://www.netease.com/schema/wenman"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.netease.com/schema/wenman http://www.netease.com/schema/wenman/process.xsd">
+
+    <yuedu:process id="readDuration" cron="0 0 6 * * ?" duration="1">
+        <yuedu:dataSource id="read_duration" format="parquet" path="/user/pris/warehouse/fenzhan/app/"
+                          filter='dt="2018-05-24" and (eventId="a1-29" || eventId="a1-31")' condition="!(now='a1-31' and !(last is null) and last ='a1-29')">
+            <yuedu:column expr="userId" alias="userId"/>
+            <yuedu:column expr="sourceUuid" alias="sourceUuid"/>
+            <yuedu:column expr="articleUuid" alias="articleUuid"/>
+            <yuedu:column expr="timestamp" alias="timestamp"/>
+            <yuedu:column expr="lag(eventId) over(partition by userId,sourceUuid,articleUuid order by timestamp)" alias="last"/>
+            <yuedu:column expr="eventId" alias="now"/>
+            <yuedu:column expr="lead(timestamp) over(partition by userId,sourceUuid,articleUuid order by timestamp) " alias="etime"/>
+        </yuedu:dataSource>
+
+        <yuedu:dataSource id="book" format="parquet" path="/user/pris/warehouse/dimensions/book">
+            <yuedu:column expr="uuid" alias="uuid"/>
+            <yuedu:column expr="category" alias="category"/>
+        </yuedu:dataSource>
+
+
+        <yuedu:dataJoin id="read_book_stat" joinType="INNER JOIN" leftRef="read_duration" rightRef="book"
+                        condition="read_duration.sourceUuid=book.uuid" savePath="/user/pris/tmp/duration/dt=$statDate"
+                        saveFormat="parquet" saveMode="overwrite" partitionNum="10">
+            <yuedu:column expr="userId" alias="userId"/>
+            <yuedu:column expr="sourceUuid" alias="sourceUuid"/>
+            <yuedu:column expr="articleUuid" alias="articleUuid"/>
+            <yuedu:column expr="timestamp" alias="timestamp"/>
+            <yuedu:column expr="(etime-timestamp)/1000" alias="duration"/>
+            <yuedu:column expr="category" alias="category"/>
+        </yuedu:dataJoin>
+    </yuedu:process>
+</beans>

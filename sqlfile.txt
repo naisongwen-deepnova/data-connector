@@ -1,0 +1,89 @@
+USE pris;
+
+SELECT g.sourceuuid
+	,g.title
+	,g.Author
+	,g.BookStatus
+	,g.createdt
+	,g.PartnerType
+	,g.uv
+	,g.MONEY
+	,g.times
+	,g.times1
+FROM (
+	SELECT a.sourceuuid
+		,a.title
+		,a.Author
+		,a.BookStatus
+		,a.createdt
+		,c.tradeday
+		,a.PartnerType
+		,b.uv
+		,b.MONEY
+		,datediff(c.tradeday, a.createdt) AS times
+		,datediff(c.tradeday, a.lastdt) AS times1
+	FROM (
+		SELECT sourceuuid
+			,title
+			,Author
+			,SourceCreateTime
+			,from_unixtime(cast(SourceCreateTime / 1000 AS BIGINT), 'yyyy-MM-dd HH:mm:ss') createdt
+			,BookStatus
+			,PartnerType
+			,LatestPublishTime
+			,from_unixtime(cast(LatestPublishTime / 1000 AS BIGINT), 'yyyy-MM-dd HH:mm:ss') lastdt
+		FROM DDB_PRIS_BOOK_SOURCE
+		WHERE STATE = 0
+			AND booktype != 21
+			AND PayType IN (
+				1
+				,2
+				)
+			AND bookstatus = 1
+			AND STATE = 0
+			AND from_unixtime(cast(SourceCreateTime / 1000 AS BIGINT), 'yyyy-MM-dd HH:mm:ss') < '2018-01-01'
+			AND from_unixtime(cast(SourceCreateTime / 1000 AS BIGINT), 'yyyy-MM-dd HH:mm:ss') > '2009-01-01'
+			and PartnerType in (2,3) and CreateBy=1
+		) a
+	JOIN (
+		SELECT d.SourceUuid
+			,d.id
+			,d.CreateTime
+			,d.tradeday
+			,d.rk
+		FROM (
+			SELECT SourceUuid
+				,id
+				,CreateTime
+				,from_unixtime(cast(CreateTime / 1000 AS BIGINT), 'yyyy-MM-dd') tradeday
+				,rank() OVER (
+					PARTITION BY SourceUuid ORDER BY from_unixtime(cast(CreateTime / 1000 AS BIGINT), 'yyyy-MM-dd') DESC
+					) AS rk
+			FROM ddb_pris_trade_book_detail
+			WHERE STATUS = 0
+			) d
+		WHERE d.rk = 1
+		) c ON a.sourceuuid = c.sourceuuid
+	JOIN (
+		SELECT SourceUuid
+			,count(DISTINCT userid) AS uv
+			,sum(VirtualMoney) AS MONEY
+		FROM ddb_pris_trade_book_detail
+		WHERE STATUS = 0
+		GROUP BY SourceUuid
+		) b ON a.sourceuuid = b.sourceuuid
+	GROUP BY a.sourceuuid
+		,a.title
+		,a.Author
+		,a.BookStatus
+		,a.createdt
+		,c.tradeday
+		,a.PartnerType
+		,b.uv
+		,b.MONEY
+		,datediff(c.tradeday, a.createdt)
+		,datediff(c.tradeday, a.lastdt)
+	) g
+WHERE g.MONEY > 0
+	AND datediff(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), g.tradeday) >= 30
+ORDER BY g.MONEY DESC

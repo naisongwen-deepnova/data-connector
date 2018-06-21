@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:yuedu="http://www.netease.com/schema/wenman" xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.netease.com/schema/wenman http://www.netease.com/schema/wenman/process.xsd">
+  <yuedu:process>
+    <yuedu:dataSource id="DDB_PRIS_BOOK_SOURCE">
+      <yuedu:column expr="sourceuuid"/>
+      <yuedu:column expr="title"/>
+      <yuedu:column expr="Author"/>
+      <yuedu:column expr="SourceCreateTime"/>
+      <yuedu:column expr="BookStatus"/>
+      <yuedu:column expr="PartnerType"/>
+      <yuedu:column expr="LatestPublishTime"/>
+    </yuedu:dataSource>
+    <yuedu:dataMap id="a" target="DDB_PRIS_BOOK_SOURCE"/>
+    <yuedu:dataSource id="ddb_pris_trade_book_detail">
+      <yuedu:column expr="SourceUuid"/>
+      <yuedu:column expr="id"/>
+      <yuedu:column expr="CreateTime"/>
+    </yuedu:dataSource>
+    <yuedu:dataMap id="d" target="ddb_pris_trade_book_detail">
+      <yuedu:column expr="SourceUuid"/>
+      <yuedu:column expr="id"/>
+      <yuedu:column expr="CreateTime"/>
+      <yuedu:column expr="tradeday"/>
+      <yuedu:column expr="rk"/>
+    </yuedu:dataMap>
+    <yuedu:dataMap id="c" target="d"/>
+    <yuedu:dataJoin id="aJOINc" joinType="JOIN" leftRef="a" rightRef="c"/>
+    <yuedu:dataSource id="ddb_pris_trade_book_detail">
+      <yuedu:column expr="SourceUuid"/>
+    </yuedu:dataSource>
+    <yuedu:dataGroup id="group_ddb_pris_trade_book_detail" target="ddb_pris_trade_book_detail">
+      <yuedu:column expr="SourceUuid"/>
+    </yuedu:dataGroup>
+    <yuedu:dataMap id="b" target="ddb_pris_trade_book_detail"/>
+    <yuedu:dataJoin id="aJOINcJOINb" joinType="JOIN" leftRef="aJOINc" rightRef="b">
+      <yuedu:column expr="sourceuuid"/>
+      <yuedu:column expr="title"/>
+      <yuedu:column expr="Author"/>
+      <yuedu:column expr="BookStatus"/>
+      <yuedu:column expr="createdt"/>
+      <yuedu:column expr="PartnerType"/>
+      <yuedu:column expr="uv"/>
+      <yuedu:column expr="MONEY"/>
+      <yuedu:column expr="tradeday"/>
+    </yuedu:dataJoin>
+    <yuedu:dataGroup id="group_aJOINcJOINb" target="aJOINcJOINb">
+      <yuedu:column expr="sourceuuid"/>
+      <yuedu:column expr="title"/>
+      <yuedu:column expr="Author"/>
+      <yuedu:column expr="BookStatus"/>
+      <yuedu:column expr="createdt"/>
+      <yuedu:column expr="PartnerType"/>
+      <yuedu:column expr="uv"/>
+      <yuedu:column expr="MONEY"/>
+      <yuedu:column expr="tradeday"/>
+    </yuedu:dataGroup>
+    <yuedu:dataMap id="g" target="aJOINcJOINb">
+      <yuedu:column expr="sourceuuid"/>
+      <yuedu:column expr="title"/>
+      <yuedu:column expr="Author"/>
+      <yuedu:column expr="BookStatus"/>
+      <yuedu:column expr="createdt"/>
+      <yuedu:column expr="PartnerType"/>
+      <yuedu:column expr="uv"/>
+      <yuedu:column expr="MONEY"/>
+      <yuedu:column expr="times"/>
+      <yuedu:column expr="times1"/>
+    </yuedu:dataMap>
+  </yuedu:process>
+</beans>

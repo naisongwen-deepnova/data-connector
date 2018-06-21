@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:yuedu="http://www.netease.com/schema/wenman"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.netease.com/schema/wenman http://www.netease.com/schema/wenman/process.xsd">
+
+    <yuedu:process id="serverLog" cron="0 0 6 * * ?" duration="1">
+        <yuedu:dataSource id="server_og" format="json" path="/datastream/pris/fenzhan/apache/"  filter='dt="2018-05-24"' savePath="/user/pris/tmp/access_log/dt=$statDate"
+                          saveFormat="parquet" saveMode="overwrite" partitionNum="10">
+            <yuedu:column expr='regexp_extract(body,"\"(.+?)\" -\\s+\\[(.+?)\\] \"(.+?) (.+?) HTTP.+?\" (\\d+?) (\\d+?) \"(.*?)\" \"(.*?)\"",1)' alias="ip"/>
+            <yuedu:column expr='regexp_extract(body,"\"(.+?)\" -\\s+\\[(.+?)\\] \"(.+?) (.+?) HTTP.+?\" (\\d+?) (\\d+?) \"(.*?)\" \"(.*?)\"",2)' alias="requestTime"/>
+            <yuedu:column expr='regexp_extract(body,"\"(.+?)\" -\\s+\\[(.+?)\\] \"(.+?) (.+?) HTTP.+?\" (\\d+?) (\\d+?) \"(.*?)\" \"(.*?)\"",3)' alias="requestMethod"/>
+            <yuedu:column expr='regexp_extract(body,"\"(.+?)\" -\\s+\\[(.+?)\\] \"(.+?) (.+?) HTTP.+?\" (\\d+?) (\\d+?) \"(.*?)\" \"(.*?)\"",4)' alias="requestUrl"/>
+            <yuedu:column expr='regexp_extract(body,"\"(.+?)\" -\\s+\\[(.+?)\\] \"(.+?) (.+?) HTTP.+?\" (\\d+?) (\\d+?) \"(.*?)\" \"(.*?)\"",5)' alias="responseCode"/>
+        </yuedu:dataSource>
+    </yuedu:process>
+</beans>

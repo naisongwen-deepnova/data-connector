@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:yuedu="http://www.netease.com/schema/wenman"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.netease.com/schema/wenman http://www.netease.com/schema/wenman/process.xsd">
+
+    <yuedu:process id="userTag" cron="0 0 6 * * ?" duration="1">
+        <yuedu:dataSource id="protocol" format="parquet" path="/user/pris/warehouse/fenzhan/app/"
+                          filter='dt="2018-05-24"'>
+        </yuedu:dataSource>
+        <yuedu:dataGroup id="login_feature" groupBy="userId" target="protocol">
+            <yuedu:column expr='userId'/>
+            <yuedu:column expr='max(timestamp)' alias="latestLoginTime"/>
+            <yuedu:column expr='min(timestamp)' alias="firstLoginTime"/>
+        </yuedu:dataGroup>
+
+        <yuedu:dataSource id="read_duration" format="parquet" path="/user/pris/warehouse/fenzhan/readDuration/">
+            <yuedu:column expr="userId"/>
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="category"/>
+            <yuedu:column expr="min(timestamp) over(partition by userId)" alias="firstReadTime"/>
+            <yuedu:column expr="max(timestamp) over(partition by userId)" alias="latestReadTime"/>
+            <yuedu:column expr="first_value(sourceUuid) over(partition by userId order by timestamp)"
+                          alias="firstReadBook"/>
+            <yuedu:column expr='count(distinct from_unixtime(timestamp,"YYYY-MM-dd")) over(partition by userId)'
+                          alias="readDays"/>
+        </yuedu:dataSource>
+
+        <yuedu:dataGroup id="read_article"
+                         groupBy="userId,sourceUuid,firstReadBook,readDays,firstReadTime ,latestReadTime,category"
+                         target="read_duration" having="count(distinct articleId)>=10">
+            <yuedu:column expr='userId'/>
+            <yuedu:column expr='sourceUuid'/>
+            <yuedu:column expr='firstReadBook'/>
+            <yuedu:column expr='firstReadTime'/>
+            <yuedu:column expr='latestReadTime'/>
+            <yuedu:column expr='readDays'/>
+            <yuedu:column expr='category'/>
+        </yuedu:dataGroup>
+        <yuedu:dataGroup id="read_category"
+                         groupBy="userId,category,firstReadTime,latestReadTime,firstReadBook,readDays"
+                         target="read_article">
+            <yuedu:column expr='userId'/>
+            <yuedu:column expr='category'/>
+            <yuedu:column expr='firstReadBook'/>
+            <yuedu:column expr='firstReadTime'/>
+            <yuedu:column expr='latestReadTime'/>
+            <yuedu:column expr='readDays'/>
+            <yuedu:column expr='category'/>
+            <yuedu:column expr='count(distinct sourceUuid)' alias="bookCnt"/>
+        </yuedu:dataGroup>
+        <yuedu:dataMap id="read_feature" condition="rank &lt;=3" target="read_category">
+            <yuedu:column expr="*"/>
+            <yuedu:column expr="row_number() over(partition by userId,category order by bookCnt desc)" alias="rank"/>
+        </yuedu:dataMap>
+
+
+        <yuedu:dataSource id="recharge" format="parquet" path="/user/pris/dbdump/yueduChannel/recharge"
+                          filter='dt="2018-05-24"'>
+        </yuedu:dataSource>
+        <yuedu:dataGroup id="recharge_feature" groupBy="userId" target="recharge">
+            <yuedu:column expr='userId'/>
+            <yuedu:column expr='max(timestamp)' alias="latestRechargeTime"/>
+            <yuedu:column expr='min(timestamp)' alias="firstRechargeTime"/>
+            <yuedu:column expr="sum(money)" alias="totalMoney"/>
+        </yuedu:dataGroup>
+
+        <yuedu:dataSource id="trade" format="parquet" path="/user/pris/dbdump/yueduChannel/trade">
+            <yuedu:column expr="userId"/>
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="min(createTime) over(partition by userId)" alias="firstTradeTime"/>
+            <yuedu:column expr="sum(virtualMoney) over(partition by userId) " alias="amount"/>
+        </yuedu:dataSource>
+        <yuedu:dataGroup id="trade_time" groupBy="userId,sourceUuid" target="trade">
+            <yuedu:column expr='userId'/>
+            <yuedu:column expr='sourceUuid'/>
+            <yuedu:column expr='firstTradeTime'/>
+            <yuedu:column expr='amount'/>
+        </yuedu:dataGroup>
+        <yuedu:dataSource id="book" format="parquet" path="path=/user/pris/warehouse/dimensions/book">
+        </yuedu:dataSource>
+        <yuedu:dataJoin id="trade_category" joinType="LEFT OUTER JOIN" condition="book.uuid=trade_time.sourceUuid"  leftRef="trade_time" rightRef="book">
+            <yuedu:column expr='userId'/>
+            <yuedu:column expr='sourceUuid'/>
+            <yuedu:column expr='category'/>
+            <yuedu:column expr='firstTradeTime'/>
+            <yuedu:column expr='amount'/>
+        </yuedu:dataJoin>
+
+        <yuedu:dataGroup id="trade_category_group" groupBy="userId,category" target="trade_category">
+            <yuedu:column expr='userId'/>
+            <yuedu:column expr='sourceUuid'/>
+            <yuedu:column expr='firstTradeTime'/>
+            <yuedu:column expr='amount'/>
+            <yuedu:column expr='amount'/>
+            <yuedu:column expr='count(sourceUuid)' alias="bookCnt"/>
+        </yuedu:dataGroup>
+
+
+        <yuedu:dataMap id="trade_feature" condition="rank &lt;=3" target="trade_category_group">
+            <yuedu:column expr="*"/>
+            <yuedu:column expr="row_number() over(partition by userId,category order by bookCnt desc)" alias="rank"/>
+        </yuedu:dataMap>
+
+        <yuedu:dataJoin id="user_tag_login_read" joinType="LEFT OUTER JOIN" condition="login_feature.userId=read_feature.userId"  leftRef="login_feature" rightRef="read_feature"/>
+        <yuedu:dataJoin id="user_tag_login_read_recharge" joinType="LEFT OUTER JOIN" condition="user_tag_login_read.userId=recharge_feature.userId"  leftRef="user_tag_login_read"
+                        rightRef="recharge_feature"/>
+        <yuedu:dataJoin id="user_tag_login_read_recharge_trade" joinType="LEFT OUTER JOIN" condition="user_tag_login_read_recharge.userId=trade_feature.userId"
+                        leftRef="user_tag_login_read_recharge" rightRef="trade_feature" saveFormat="parquet"
+                        savePath="/user/pris/tmp/user_tag"/>
+    </yuedu:process>
+</beans>

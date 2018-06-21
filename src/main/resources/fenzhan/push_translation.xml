@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:yuedu="http://www.netease.com/schema/wenman"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.netease.com/schema/wenman http://www.netease.com/schema/wenman/process.xsd">
+
+    <yuedu:process id="push_translation" duration="1">
+        <yuedu:dataSource id="push" format="parquet" path="/user/pris/warehouse/fenzhan/app/dt=${statDate}"
+                          filter="eventId in ('e-8','e-12','e-14','e-16','e-18','e-20','e-22')"
+                          condition="msgId is not null" cache="true">
+            <yuedu:column expr="eventId"/>
+            <yuedu:column expr="userId" alias="pushUserId"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="linkId"/>
+            <yuedu:column expr="timestamp" alias="pushTime"/>
+            <yuedu:column expr="params['pos']" alias="pos"/>
+            <yuedu:column expr="params['msgId']" alias="msgId"/>
+            <yuedu:column expr="params['sourceUuid']" alias="sourceUuid"/>
+        </yuedu:dataSource>
+
+
+        <yuedu:dataSource id="receive" format="parquet" path="/user/pris/warehouse/fenzhan/app/dt=${statDate}"
+                          filter="eventId in ('e-7','e-11','e-13','e-15','e-17','e-19','e-21')" cache="true">
+            <yuedu:column expr="eventId"/>
+            <yuedu:column expr="userId"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="linkId"/>
+            <yuedu:column expr="params['pos']" alias="pos"/>
+            <yuedu:column expr="params['msgId']" alias="msgId"/>
+            <yuedu:column expr="params['sourceUuid']" alias="sourceUuid"/>
+        </yuedu:dataSource>
+
+        <yuedu:dataJoin id="push_receive" joinType="LEFT OUTER JOIN" leftRef="push" rightRef="receive"
+                        filter="push.msgId=receive.msgId and push.pos=receive.pos and ((push.sourceUuid is null and receive.sourceUuid is null) or (push.sourceUuid=receive.sourceUuid))">
+            <yuedu:column expr="push.*"/>
+            <yuedu:column expr="receive.userId" alias="receiveUserId"/>
+        </yuedu:dataJoin>
+
+        <yuedu:dataGroup id="push_receive_user_count" target="push_receive" groupBy="siteId,eventId,pos">
+            <yuedu:column expr="count(receiveUserId)" alias="receiveCount"/>
+            <yuedu:column expr="count(distinct receiveUserId)" alias="receiveUserCount"/>
+            <yuedu:column expr="count(pushUserId)" alias="pushCount"/>
+            <yuedu:column expr="count(distinct pushUserId)" alias="pushUserCount"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="eventId"/>
+            <yuedu:column expr="pos"/>
+        </yuedu:dataGroup>
+
+        <yuedu:dataSource id="recharge" format="parquet"
+                          filter="from_unixtime(createTime/1000,'YYYY-MM-dd')='${statDate}'"
+                          path="/user/pris/dbdump/yueduChannel/recharge">
+            <yuedu:column expr="userId"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="linkId"/>
+            <yuedu:column expr="payTime"/>
+            <yuedu:column expr="money"/>
+        </yuedu:dataSource>
+
+        <yuedu:dataJoin id="push_recharge" joinType="LEFT OUTER JOIN" leftRef="push_receive" rightRef="recharge"
+                        filter="push_receive.receiveUserId=recharge.userId and push_receive.siteId=recharge.siteId and push_receive.linkId=recharge.linkId  and abs(payTime-pushTime) &lt; 12*3600*1000">
+            <yuedu:column expr="push_receive.*"/>
+            <yuedu:column expr="recharge.userId" alias="rechargeUserId"/>
+            <yuedu:column expr="recharge.money"/>
+        </yuedu:dataJoin>
+
+        <yuedu:dataGroup id="recharge_user_count" target="push_recharge" groupBy="siteId,eventId,pos">
+            <yuedu:column expr="count(distinct rechargeUserId)" alias="rechargeUserCount"/>
+            <yuedu:column expr="sum(money)/1000.0" alias="rechargeMoney"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="eventId"/>
+            <yuedu:column expr="pos"/>
+        </yuedu:dataGroup>
+
+
+        <yuedu:dataSource id="read" format="parquet"
+                          path="/user/pris/warehouse/fenzhan/app/dt=${statDate}">
+            <yuedu:column expr="userId"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="timestamp"/>
+            <yuedu:column expr="linkId"/>
+        </yuedu:dataSource>
+
+
+        <yuedu:dataJoin id="read_push" joinType="LEFT OUTER JOIN" leftRef="push_receive" rightRef="read"
+                        filter="push_receive.receiveUserId=read.userId and push_receive.siteId=read.siteId and push_receive.linkId=read.linkId  and ((read.sourceUuid=push_receive.sourceUuid) or(read.sourceUuid is null and push_receive.sourceUuid is null)) and abs(read.timestamp-pushTime)&lt; 12*3600*1000">
+            <yuedu:column expr="push_receive.*"/>
+            <yuedu:column expr="read.userId" alias="readUserId"/>
+        </yuedu:dataJoin>
+
+        <yuedu:dataGroup id="read_user_count" target="read_push" groupBy="siteId,eventId,pos">
+            <yuedu:column expr="count(distinct readUserId)" alias="readUserCount"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="eventId"/>
+            <yuedu:column expr="pos"/>
+        </yuedu:dataGroup>
+
+        <yuedu:dataJoin id="push_stat1" joinType="LEFT OUTER JOIN" leftRef="push_receive_user_count"
+                        rightRef="recharge_user_count"
+                        filter="push_receive_user_count.siteId=recharge_user_count.siteId and push_receive_user_count.eventId=recharge_user_count.eventId and push_receive_user_count.pos=recharge_user_count.pos">
+            <yuedu:column expr="push_receive_user_count.*"/>
+            <yuedu:column expr="rechargeUserCount"/>
+            <yuedu:column expr="rechargeMoney"/>
+            <yuedu:column expr="${duration}" alias="duration"/>
+            <yuedu:column expr="'${statDate}'" alias="dt"/>
+        </yuedu:dataJoin>
+
+        <yuedu:dataJoin id="push_stat2" joinType="LEFT OUTER JOIN" leftRef="push_stat1" rightRef="read_user_count"
+                        filter="push_stat1.siteId=read_user_count.siteId and push_stat1.eventId=read_user_count.eventId and push_stat1.pos=read_user_count.pos"
+                        savePath="/user/pris/tmp/push_stat/${statDate}-${duration}"
+                        saveFormat="parquet" saveMode="append" partitionNum="1"
+                        jdbcUrl="jdbc:mysql://10.201.241.27:3306/yaolu_rds?user=*******;password=******"
+                        table="fenzhan_push_stat">
+            <yuedu:column expr="push_stat1.*"/>
+            <yuedu:column expr="readUserCount"/>
+        </yuedu:dataJoin>
+    </yuedu:process>
+</beans>

@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:yuedu="http://www.netease.com/schema/wenman"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.netease.com/schema/wenman http://www.netease.com/schema/wenman/process.xsd">
+
+    <yuedu:process id="newOldUserReadStat" duration="1">
+        <yuedu:dataSource id="user" format="parquet" path="/user/pris/dbdump/yueduChannel/user" cache="true">
+            <yuedu:column expr="id"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr='from_unixtime(createTime/1000,"YYYY-MM-dd")' alias="registerDate"/>
+        </yuedu:dataSource>
+        <!--distinct affect order?-->
+        <yuedu:dataSource id="read" format="parquet" filter="dt>= '${startDate}' and  dt &lt;'${endDate}'"
+                          path="/user/pris/warehouse/fenzhan/app/" orderBy="timestamp asc" distinct="true">
+            <yuedu:column expr="userId"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr='dt' alias="readDate"/>
+        </yuedu:dataSource>
+        <yuedu:dataJoin id="ext_read_user" joinType="JOIN" leftRef="read" rightRef="user" filter="read.userId=user.id">
+            <yuedu:column expr="read.userId"/>
+            <yuedu:column expr="read.siteId"/>
+            <yuedu:column expr="read.sourceUuid"/>
+            <yuedu:column expr="registerDate"/>
+            <yuedu:column expr="readDate"/>
+            <yuedu:column expr="row_number() OVER (PARTITION BY userId,read.siteId order by readDate)" alias="rank"/>
+        </yuedu:dataJoin>
+
+        <yuedu:dataMap id="tag_read_user" target="ext_read_user">
+            <yuedu:column expr="userId"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="case when registerDate=readDate then 1 else 2 end" alias="readUserTag"/>
+            <yuedu:column expr="case when registerDate=readDate and rank=1 then 3 else 4 end" alias="accessUserTag"/>
+        </yuedu:dataMap>
+
+        <yuedu:dataSource id="book" format="parquet" path="/user/pris/dbdump/pris_book_source/" cache="true">
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="title"/>
+        </yuedu:dataSource>
+
+        <yuedu:dataSource id="site" format="parquet" path="/user/pris/dbdump/yueduChannel/site/" cache="true">
+        </yuedu:dataSource>
+        <yuedu:dataSource id="provider" format="parquet" path="/user/pris/dbdump/yueduChannel/provider/" cache="true">
+        </yuedu:dataSource>
+
+        <yuedu:dataGroup id="read_user_count" groupBy="sourceUuid,siteId" target="tag_read_user">
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="count(distinct if(readUserTag=1,userId,null))" alias="newReadUserCount"/>
+            <yuedu:column expr="count(distinct if(readUserTag=2,userId,null))" alias="oldReadUserCount"/>
+            <yuedu:column expr="count(distinct if(accessUserTag=3,userId,null))" alias="newAccessReadUserCount"/>
+            <yuedu:column expr="count(distinct if(accessUserTag=4,userId,null))" alias="oldAccessReadUserCount"/>
+        </yuedu:dataGroup>
+
+        <yuedu:dataSource id="vip_read_record" format="parquet"
+                          filter='from_unixtime(createTime/1000,"YYYY-MM-dd")>="${startDate}" and  from_unixtime(createTime/1000,"YYYY-MM-dd") &lt;"${endDate}"'
+                          path="/user/pris/dbdump/yueduChannel/vip_read_record">
+            <yuedu:column expr="userId"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="vipPrice"/>
+            <yuedu:column expr="price"/>
+            <yuedu:column expr="createTime"/>
+            <yuedu:column expr='from_unixtime(createTime/1000,"YYYY-MM-dd")' alias="vipReadDate"/>
+            <yuedu:column expr="case payType when 1 then 'articleUuid' else 'sourceUuid' end" alias="subject"/>
+        </yuedu:dataSource>
+
+        <yuedu:dataMap id="simple_vip_read" target="vip_read_record" condition="rank=1">
+            <yuedu:column expr="userId"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="vipPrice" alias="price1"/>
+            <yuedu:column expr="price" alias="price2"/>
+            <yuedu:column expr="vipReadDate" alias="date"/>
+            <yuedu:column expr="1" alias="vipReadRecord"/>
+            <yuedu:column expr="row_number() OVER (PARTITION BY userId,sourceUuid,subject ORDER BY createTime asc)"
+                          alias="rank"/>
+        </yuedu:dataMap>
+
+
+        <yuedu:dataSource id="trade" format="parquet" filter="dt>= '${startDate}' and  dt &lt;'${endDate}'"
+                          path="/user/pris/warehouse/yueduChannel/misc/daily_trade_grouped/">
+            <yuedu:column expr="userId"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="yuedian" alias="price1"/>
+            <yuedu:column expr="hongbao" alias="price2"/>
+            <yuedu:column expr="dt" alias="date"/>
+            <yuedu:column expr="0" alias="vipReadRecord"/>
+            <yuedu:column expr="null" alias="rank"/>
+        </yuedu:dataSource>
+
+        <yuedu:dataCollect id="union_trade_user" collectType="UNION" leftRef="trade" rightRef="simple_vip_read">
+            <yuedu:column expr="userId"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="price1"/>
+            <yuedu:column expr="price2"/>
+            <yuedu:column expr="date"/>
+            <yuedu:column expr="vipReadRecord"/>
+            <yuedu:column expr="rank"/>
+        </yuedu:dataCollect>
+
+        <yuedu:dataJoin id="ext_union_trade_user" joinType="JOIN" leftRef="union_trade_user" rightRef="tag_read_user"
+        filter="union_trade_user.userId=tag_read_user.userId and union_trade_user.siteId=tag_read_user.siteId and union_trade_user.sourceUuid=tag_read_user.sourceUuid">
+            <yuedu:column expr="union_trade_user.userId"/>
+            <yuedu:column expr="union_trade_user.siteId"/>
+            <yuedu:column expr="union_trade_user.sourceUuid"/>
+            <yuedu:column expr="union_trade_user.price1"/>
+            <yuedu:column expr="union_trade_user.price2"/>
+            <yuedu:column expr="union_trade_user.vipReadRecord"/>
+            <yuedu:column expr="tag_read_user.readUserTag"/>
+            <yuedu:column expr="tag_read_user.accessUserTag"/>
+        </yuedu:dataJoin>
+
+        <yuedu:dataJoin id="new_old_user_read_stat1" joinType="JOIN" leftRef="read_user_count"
+                        rightRef="site" filter="read_user_count.siteId=site.id">
+            <yuedu:column expr="read_user_count.*"/>
+            <yuedu:column expr="site.name"/>
+            <yuedu:column expr="site.providerId"/>
+        </yuedu:dataJoin>
+        <yuedu:dataJoin id="new_old_user_read_stat2" joinType="JOIN" leftRef="new_old_user_read_stat1"
+                        rightRef="provider" filter="new_old_user_read_stat1.providerId=provider.id">
+            <yuedu:column expr="new_old_user_read_stat1.*"/>
+            <yuedu:column expr="provider.providerName"/>
+        </yuedu:dataJoin>
+        <yuedu:dataJoin id="new_old_user_read_stat3" joinType="LEFT OUTER JOIN" leftRef="new_old_user_read_stat2"
+                        rightRef="book"
+                        filter="new_old_user_read_stat2.sourceUuid=book.sourceUuid">
+            <yuedu:column expr="new_old_user_read_stat2.*"/>
+            <yuedu:column expr="book.title"/>
+        </yuedu:dataJoin>
+
+        <yuedu:dataGroup id="new_read_trade_stat" groupBy="sourceUuid,siteId" target="ext_union_trade_user">
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="count(distinct if(readUserTag=1,userId,null))" alias="totalNewReadPayUserCount"/>
+            <yuedu:column expr="count(distinct if(readUserTag=1 and vipReadRecord=0,userId,null))" alias="newReadTradeUserCount"/>
+            <yuedu:column expr="sum(if(readUserTag=1 and vipReadRecord=0,(price1+price2),0))" alias="newReadTradeVM"/>
+            <yuedu:column expr="count(distinct if(readUserTag=1 and vipReadRecord=1,userId,null))" alias="newReadVipUserCount"/>
+            <yuedu:column expr="sum(if(readUserTag=1 and vipReadRecord=1,(price1+price2),0))" alias="newReadVipVM"/>
+        </yuedu:dataGroup>
+
+        <yuedu:dataGroup id="new_access_trade_stat" groupBy="sourceUuid,siteId" target="ext_union_trade_user">
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="count(distinct if(accessUserTag=4,userId,null))" alias="totalOldAccessPayUserCount"/>
+            <yuedu:column expr="count(distinct if(accessUserTag=3 and vipReadRecord=0,userId,null))" alias="newAccessTradeUserCount"/>
+            <yuedu:column expr="sum(if(accessUserTag=3 and vipReadRecord=0,(price1+price2),0))" alias="newAccessTradeVM"/>
+            <yuedu:column expr="count(distinct if(accessUserTag=3 and vipReadRecord=1,userId,null))" alias="newAccessVipUserCount"/>
+            <yuedu:column expr="sum(if(accessUserTag=3 and vipReadRecord=1,(price1+price2),0))" alias="newAccessVipVM"/>
+        </yuedu:dataGroup>
+
+        <yuedu:dataGroup id="old_access_trade_stat" groupBy="sourceUuid,siteId" target="ext_union_trade_user">
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="count(distinct if(accessUserTag=4,userId,null))" alias="totalOldAccessPayUserCount"/>
+            <yuedu:column expr="count(distinct if(accessUserTag=4 and vipReadRecord=0,userId,null))" alias="oldAccessTradeUserCount"/>
+            <yuedu:column expr="sum(if(accessUserTag=4 and vipReadRecord=0,(price1+price2),0))" alias="oldAccessTradeVM"/>
+            <yuedu:column expr="count(distinct if(accessUserTag=4 and vipReadRecord=1,userId,null))" alias="oldAccessVipUserCount"/>
+            <yuedu:column expr="sum(if(accessUserTag=4 and vipReadRecord=1,(price1+price2),0))" alias="oldAccessVipVM"/>
+        </yuedu:dataGroup>
+
+
+        <yuedu:dataJoin id="new_read_user_stat" joinType="LEFT OUTER JOIN" leftRef="new_old_user_read_stat3"  rightRef="new_read_trade_stat"
+                        filter="new_old_user_read_stat3.sourceUuid=new_read_trade_stat.sourceUuid and new_old_user_read_stat3.siteId=new_read_trade_stat.siteId" savePath="/user/pris/tmp/new_read_user_stat/1-${statDate}-${duration}"
+                        saveFormat="parquet" saveMode="overwrite" partitionNum="1">
+            <yuedu:column expr="new_old_user_read_stat3.sourceUuid"/>
+            <yuedu:column expr="new_old_user_read_stat3.siteId"/>
+            <yuedu:column expr="new_old_user_read_stat3.title"/>
+            <yuedu:column expr="new_old_user_read_stat3.name"/>
+            <yuedu:column expr="new_old_user_read_stat3.providerId"/>
+            <yuedu:column expr="new_old_user_read_stat3.providerName"/>
+            <yuedu:column expr="new_read_trade_stat.totalNewReadPayUserCount"/>
+            <yuedu:column expr="new_read_trade_stat.newReadTradeUserCount"/>
+            <yuedu:column expr="new_read_trade_stat.newReadTradeVM"/>
+            <yuedu:column expr="new_read_trade_stat.newReadVipUserCount"/>
+            <yuedu:column expr="new_read_trade_stat.newReadVipVM"/>
+            <yuedu:column expr="${duration}" alias="statType"/>
+            <yuedu:column expr="'${statDate}'" alias="dt"/>
+        </yuedu:dataJoin>
+
+        <yuedu:dataGroup id="old_read_trade_stat" groupBy="sourceUuid,siteId" target="ext_union_trade_user">
+            <yuedu:column expr="sourceUuid"/>
+            <yuedu:column expr="siteId"/>
+            <yuedu:column expr="count(distinct if(readUserTag=2,userId,null))" alias="totalOldReadPayUserCount"/>
+            <yuedu:column expr="count(distinct if(readUserTag=2 and vipReadRecord=0,userId,null))" alias="oldReadTradeUserCount"/>
+            <yuedu:column expr="sum(if(readUserTag=2 and vipReadRecord=0,(price1+price2),0))" alias="oldReadTradeVM"/>
+            <yuedu:column expr="count(distinct if(readUserTag=2 and vipReadRecord=1,userId,null))" alias="oldReadVipUserCount"/>
+            <yuedu:column expr="sum(if(readUserTag=2 and vipReadRecord=1,(price1+price2),0))" alias="oldReadVipVM"/>
+        </yuedu:dataGroup>
+
+        <yuedu:dataJoin id="old_read_user_stat" joinType="LEFT OUTER JOIN" leftRef="new_old_user_read_stat3"  rightRef="old_read_trade_stat"
+                        filter="new_old_user_read_stat3.sourceUuid=old_read_trade_stat.sourceUuid and new_old_user_read_stat3.siteId=old_read_trade_stat.siteId" savePath="/user/pris/tmp/old_read_user_stat/1-${statDate}-${duration}"
+                        saveFormat="parquet" saveMode="overwrite" partitionNum="1" jdbcUrl="">
+            <yuedu:column expr="new_old_user_read_stat3.sourceUuid"/>
+            <yuedu:column expr="new_old_user_read_stat3.siteId"/>
+            <yuedu:column expr="new_old_user_read_stat3.title"/>
+            <yuedu:column expr="new_old_user_read_stat3.name"/>
+            <yuedu:column expr="new_old_user_read_stat3.providerId"/>
+            <yuedu:column expr="new_old_user_read_stat3.providerName"/>
+            <yuedu:column expr="old_read_trade_stat.totalOldReadPayUserCount"/>
+            <yuedu:column expr="old_read_trade_stat.oldReadTradeUserCount"/>
+            <yuedu:column expr="old_read_trade_stat.oldReadTradeVM"/>
+            <yuedu:column expr="old_read_trade_stat.oldReadVipUserCount"/>
+            <yuedu:column expr="old_read_trade_stat.oldReadVipVM"/>
+            <yuedu:column expr="${duration}" alias="statType"/>
+            <yuedu:column expr="'${statDate}'" alias="dt"/>
+        </yuedu:dataJoin>
+    </yuedu:process>
+</beans>
