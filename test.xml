@@ -4,12 +4,13 @@
        http://www.springframework.org/schema/beans/spring-beans.xsd
        http://www.netease.com/schema/wenman http://www.netease.com/schema/wenman/process.xsd">
   <yuedu:process>
-    <yuedu:dataSource id="DDB_PRIS_BOOK_SOURCE">
-      <yuedu:column expr="sourceuuid"/>
-      <yuedu:column expr="title"/>
-      <yuedu:column expr="Author"/>
-      <yuedu:column expr="SourceCreateTime"/>
-      <yuedu:column expr="BookStatus"/>
+    <yuedu:dataJoin id="A,B" joinType="," leftRef="A" rightRef="B">
+      <yuedu:column expr="id" alias="aId"/>
+      <yuedu:column expr="name" alias="bName"/>
+    </yuedu:dataJoin>
+  </yuedu:process>
+</beans>
+  <yuedu:column expr="BookStatus"/>
       <yuedu:column expr="PartnerType"/>
       <yuedu:column expr="LatestPublishTime"/>
     </yuedu:dataSource>

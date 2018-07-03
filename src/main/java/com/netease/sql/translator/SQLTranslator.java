@@ -7,6 +7,7 @@ import com.alibaba.druid.sql.ast.statement.*;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlSelectQueryBlock;
 import com.alibaba.druid.sql.visitor.SQLASTVisitorAdapter;
 import com.google.common.io.Files;
+import com.netease.TranslateOption;
 import com.netease.spring.handler.xml.*;
 import org.dom4j.Document;
 import org.dom4j.DocumentHelper;
@@ -441,5 +442,25 @@ public class SQLTranslator extends SQLASTVisitorAdapter {
         }
         x.putAttribute("dataSource", dataGroup);
         return false;
+    }
+
+    public static void main(String args[]) throws Exception {
+        SQLTranslator sqlTranslator = new SQLTranslator();
+        TranslateOption translateOption=new TranslateOption();
+        boolean f = translateOption.hasOption("f", args);
+        String sql = translateOption.getOptionValue("sql", args);
+        String dbType = translateOption.getOptionValue("dbType", args);
+        String outputFile = translateOption.getOptionValue("outputFile", args);
+        try {
+            if (f) {
+                System.out.println("Translating sql from file " + sql);
+                sqlTranslator.translate(new File(sql), dbType, outputFile);
+            } else {
+                System.out.println("Translating sql  " + sql);
+                sqlTranslator.translate(sql, dbType, outputFile);
+            }
+        }catch (Exception e){
+            translateOption.help();
+        }
     }
 }

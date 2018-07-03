@@ -58,7 +58,7 @@
         </yuedu:dataSource>
 
         <yuedu:dataJoin id="push_recharge" joinType="LEFT OUTER JOIN" leftRef="push_receive" rightRef="recharge"
-                        filter="push_receive.receiveUserId=recharge.userId and push_receive.siteId=recharge.siteId and push_receive.linkId=recharge.linkId  and abs(payTime-pushTime) &lt; 12*3600*1000">
+                        filter="push_receive.receiveUserId=recharge.userId and push_receive.siteId=recharge.siteId and push_receive.linkId=recharge.linkId  and payTime>pushTime and (payTime-pushTime) &lt; 12*3600*1000">
             <yuedu:column expr="push_receive.*"/>
             <yuedu:column expr="recharge.userId" alias="rechargeUserId"/>
             <yuedu:column expr="recharge.money"/>
@@ -66,7 +66,7 @@
 
         <yuedu:dataGroup id="recharge_user_count" target="push_recharge" groupBy="siteId,eventId,pos">
             <yuedu:column expr="count(distinct rechargeUserId)" alias="rechargeUserCount"/>
-            <yuedu:column expr="sum(money)/1000.0" alias="rechargeMoney"/>
+            <yuedu:column expr="sum(money)/100.0" alias="rechargeMoney"/>
             <yuedu:column expr="siteId"/>
             <yuedu:column expr="eventId"/>
             <yuedu:column expr="pos"/>
@@ -84,7 +84,7 @@
 
 
         <yuedu:dataJoin id="read_push" joinType="LEFT OUTER JOIN" leftRef="push_receive" rightRef="read"
-                        filter="push_receive.receiveUserId=read.userId and push_receive.siteId=read.siteId and push_receive.linkId=read.linkId  and ((read.sourceUuid=push_receive.sourceUuid) or(read.sourceUuid is null and push_receive.sourceUuid is null)) and abs(read.timestamp-pushTime)&lt; 12*3600*1000">
+                        filter="push_receive.receiveUserId=read.userId and push_receive.siteId=read.siteId and push_receive.linkId=read.linkId  and ((read.sourceUuid=push_receive.sourceUuid) or(read.sourceUuid is null and push_receive.sourceUuid is null)) and read.timestamp>pushTime and (read.timestamp-pushTime)&lt; 12*3600*1000">
             <yuedu:column expr="push_receive.*"/>
             <yuedu:column expr="read.userId" alias="readUserId"/>
         </yuedu:dataJoin>
@@ -110,7 +110,7 @@
                         filter="push_stat1.siteId=read_user_count.siteId and push_stat1.eventId=read_user_count.eventId and push_stat1.pos=read_user_count.pos"
                         savePath="/user/pris/tmp/push_stat/${statDate}-${duration}"
                         saveFormat="parquet" saveMode="append" partitionNum="1"
-                        jdbcUrl="jdbc:mysql://10.201.241.27:3306/yaolu_rds?user=*******;password=******"
+                        jdbcUrl="jdbc:mysql://10.201.241.27:3306/yaolu_rds?useSSL=false&amp;user=yaolu_static&amp;password=roNaCAmJ{"
                         table="fenzhan_push_stat">
             <yuedu:column expr="push_stat1.*"/>
             <yuedu:column expr="readUserCount"/>

@@ -19,7 +19,7 @@ import java.util.List;
 public class SqlParserTest {
     public static void main(String args[]) {
         // 新建 MySQL Parser
-        SQLStatementParser parser = new MySqlStatementParser(SqlClauseConstants.sql);
+        SQLStatementParser parser = new MySqlStatementParser(SqlClauseConstants.sqls[7]);
 
         List<SQLSelectItem> items = null;
         StringBuffer select = new StringBuffer();

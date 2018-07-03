@@ -236,9 +236,10 @@ public class TaskProcessor {
 
     public static void main(String args[]) throws Exception {
         ApplicationContext context;
-        boolean hdfs = CmdOptions.hasOption("hdfs", args);
-        String config = CmdOptions.getOptionValue("config", args);
-        String statDate = CmdOptions.getOptionValue("statDate", args);
+        CmdOptions cmdOptionsv=new CmdOptions();
+        boolean hdfs = cmdOptionsv.hasOption("hdfs", args);
+        String config = cmdOptionsv.getOptionValue("config", args);
+        String statDate = cmdOptionsv.getOptionValue("statDate", args);
         if (hdfs) {
             System.out.println("Loading " + config + " from hdfs");
             context = new FileSystemXmlApplicationContext(readfile(config));
@@ -248,7 +249,7 @@ public class TaskProcessor {
         }
         com.netease.spring.handler.xml.Process process = (com.netease.spring.handler.xml.Process) context.getBean(context.getBeanDefinitionNames()[0]);
         TaskProcessor taskProcessor = new TaskProcessor();
-        Properties properties = CmdOptions.getOptionProperty("D", args);
+        Properties properties = cmdOptionsv.getOptionProperty("D", args);
         if (!StringUtils.isEmpty(statDate)) properties.put("statDate", statDate);
         taskProcessor.process(process, properties);
     }
