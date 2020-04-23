@@ -9,6 +9,7 @@ public class SqlClauseConstants {
     public static final String dbType = JdbcConstants.MYSQL; // JdbcConstants.MYSQL或者JdbcConstants.POSTGRESQL
 
     public static String[] sqls = {
+            "SELECT a, b, c FROM table1 FOO inner join TABLE2 ON a = b",
             "select a.id,a.name from a where a.id=1 order by a.age",
             "select a.id as ID1,a.name as NAME1 from mytable a where a.id = 3 group by name order by id asc limit 10",
             "select a.id aId,b.name bName from A a,B b where a.id=b.id order by a.age",

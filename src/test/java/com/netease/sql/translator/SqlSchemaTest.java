@@ -16,7 +16,7 @@ import java.util.List;
 public class SqlSchemaTest {
     public static void main(String args[]) {
         String dbType = JdbcConstants.MYSQL;
-        List<SQLStatement> stmtList = SQLUtils.parseStatements(SqlClauseConstants.sqls[7], dbType);
+        List<SQLStatement> stmtList = SQLUtils.parseStatements(SqlClauseConstants.sqls[0], dbType);
         SchemaStatVisitor statVisitor = SQLUtils.createSchemaStatVisitor(dbType);
         for (SQLStatement stmt : stmtList) {
             SQLSelectQueryBlock queryBlock = ((SQLSelectStatement) stmt).getSelect().getQueryBlock();
